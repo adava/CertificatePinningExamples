@@ -2,32 +2,44 @@
 Android TrustManagerCertPin Sample
 ===================================
 
-This sample demonstrates how to connect to the network and fetch raw HTML using
-HttpsURLConnection. AsyncTask is used to perform the fetch on a background thread.
+This sample demonstrates how use certificate pinning using TrustManager.
 
 Introduction
 ------------
 
-This sample demonstrates how to connect to the network and fetch raw HTML using
-[`HttpsURLConnection`][4]. Since API 11, it is required by default that all network
-operations run on a background thread in order to avoid hanging on the UI thread. Only
-when the network response is ready should the work return to the main thread to update
-the UI. An [`AsyncTask`][3] is a viable background task manager that is used to perform
-the network operation and return to the UI thread upon completion.
+This sample demonstrates how use certificate pinning using TrustManager.
+Although the algorithm is not performing pinning per se, its end result is effectively
+similar to the pinning. This method is bit older than the other two, and hence the code
+needs a bit more setup:
 
-The sample also utilizes the [`ConnectivityManager`][1] to determine if you have
-a network connection, and if so, what type of connection it is.
+        private SSLContext get_initialized_SSLContext() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException, KeyManagementException {
+            //int id = getResources().getIdentifier("frida", "raw","com.example.android.TrustManagerCertPin"); //change to this for testing failure
+            int id = getResources().getIdentifier("badsslcert", "raw","com.example.android.TrustManagerCertPin");
 
-Using an [`AsyncTaskLoader`][6] or an [`IntentService`][5] are two common alternatives
-for managing longer running background work.
+            InputStream resourceStream = getResources().openRawResource(id);
 
-[1]: https://developer.android.com/reference/android/net/ConnectivityManager.html
-[2]: https://developer.android.com/reference/android/net/NetworkInfo.html
-[3]: https://developer.android.com/reference/android/os/AsyncTask.html
-[4]: https://developer.android.com/reference/javax/net/ssl/HttpsURLConnection.html
-[5]: https://developer.android.com/reference/android/app/IntentService.html
-[6]: https://developer.android.com/reference/android/content/AsyncTaskLoader.html
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            Certificate ca = cf.generateCertificate(resourceStream);
+            String keyStoreType = KeyStore.getDefaultType();
+            KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+            keyStore.load(null, null);
+            keyStore.setCertificateEntry("ca", ca);
 
+            String trustManagerAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(trustManagerAlgorithm);
+            trustManagerFactory.init(keyStore);
+
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null,trustManagerFactory.getTrustManagers(),null);
+            return sslContext;
+        }
+        
+After preparing the SSLContext, it should be set for the connection instance:
+
+            SSLContext sslContext = get_initialized_SSLContext();
+            connection = (HttpsURLConnection) url.openConnection();
+            connection.setSSLSocketFactory(sslContext.getSocketFactory());
+            
 Pre-requisites
 --------------
 
@@ -38,7 +50,7 @@ Pre-requisites
 Screenshots
 -------------
 
-<img src="screenshots/main.png" height="400" alt="Screenshot"/> 
+<img src="screenshots/TrustManager.png" height="400" alt="Screenshot"/> 
 
 Getting Started
 ---------------
@@ -46,13 +58,3 @@ Getting Started
 This sample uses the Gradle build system. To build this project, use the
 "gradlew build" command or use "Import Project" in Android Studio.
 
-Support
--------
-
-- Stack Overflow: http://stackoverflow.com/questions/tagged/android
-
-If you've found an error in this sample, please file an issue:
-https://github.com/android/connectivity
-
-Patches are encouraged, and may be submitted by forking this project and
-submitting a pull request through GitHub. Please see CONTRIBUTING.md for more details.
